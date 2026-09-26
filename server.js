@@ -104,13 +104,17 @@ function handlePreflight(req, res) {
  */
 function serveStaticFile(req, res, pathname) {
   // Normalize path
-  let safePath = pathname === '/' || pathname === '' ? '/live_screen_view.html' : pathname;
-  if (safePath === '/index.html') {
-    safePath = '/live_screen_view.html';
-  }
+  let safePath = pathname === '/' || pathname === '' ? '/index.html' : pathname;
 
   // Prevent directory traversal
-  const filePath = path.join(ROOT_DIR, path.normalize(safePath).replace(/^(\.\.[\/\\])+/, ''));
+  let filePath = path.join(ROOT_DIR, path.normalize(safePath).replace(/^(\.\.[\/\\])+/, ''));
+
+  if (!fs.existsSync(filePath)) {
+    const publicPath = path.join(ROOT_DIR, 'public', path.normalize(safePath).replace(/^(\.\.[\/\\])+/, ''));
+    if (fs.existsSync(publicPath)) {
+      filePath = publicPath;
+    }
+  }
 
   if (!filePath.startsWith(ROOT_DIR)) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
@@ -120,7 +124,6 @@ function serveStaticFile(req, res, pathname) {
 
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {
-      // If requesting a file without extension, try appending .html
       if (!path.extname(filePath)) {
         return serveStaticFile(req, res, pathname + '.html');
       }
