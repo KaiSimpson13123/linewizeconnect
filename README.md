@@ -11,8 +11,24 @@ Deployable immediately to **Vercel** or runnable locally as a zero-dependency **
 - **Live Screen Telemetry**: High-frequency peer-to-peer JPEG/PNG frame rendering via WebRTC data channels with frame rate (FPS) and latency monitoring.
 - **Tab Management**: Displays open tabs on the student's device and supports remote active tab switching.
 - **Built-in CORS Reverse Proxy**: Transparently relays Linewize Configuration Gateway (`https://configuration-gw.*.linewize.net`) requests and streams Server-Sent Events (SSE) from Linewize Event Service.
+- **Password Protection**: Built-in authentication lock screen gate and server-side token enforcement protecting the console and all proxy APIs. Configurable via `SITE_PASSWORD`.
 - **Enterprise Design System**: Strict 8-point spacing scale, typography, and focused contrast without visual noise or extraneous animations.
 - **Universal Deployment**: Zero-config deployment on Vercel via Serverless Functions, or standalone execution on Node.js 18+.
+
+---
+
+## 🔒 Password Protection & Security
+
+The entire application (both the frontend console and all backend proxy APIs) is password-protected.
+
+- **Default Password**: `admin`
+- **Configuring Custom Password**:
+  - **On Vercel**: Go to **Project Settings** → **Environment Variables** → Add `SITE_PASSWORD` with your desired secret password.
+  - **Locally**: Set `SITE_PASSWORD=your_secret_password` in your environment or start with:
+    ```bash
+    SITE_PASSWORD=my_secure_password npm start
+    ```
+- **Session**: Successful authentication issues a secure SHA-256 session cookie valid for 7 days. You can lock or revoke the session at any time via the **Lock** button in the top navigation bar.
 
 ---
 

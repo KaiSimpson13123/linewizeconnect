@@ -856,6 +856,41 @@
 </head>
 <body>
 
+  <!-- Authentication Lock Screen Gate -->
+  <div id="auth-gate" style="position: fixed; inset: 0; z-index: 1000; background-color: var(--color-bg-canvas); display: flex; align-items: center; justify-content: center; padding: var(--space-4);">
+    <div style="width: 100%; max-width: 380px; background-color: var(--color-bg-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); padding: var(--space-6); box-shadow: var(--shadow-lg);">
+      <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4);">
+        <div class="brand-logo" style="width: 28px; height: 28px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <div>
+          <div style="font-size: 13px; font-weight: 600; color: var(--color-text-primary);">Linewize Connect</div>
+          <div style="font-size: 11px; color: var(--color-text-tertiary); font-family: var(--font-mono);">Access Control</div>
+        </div>
+      </div>
+      
+      <h1 style="font-size: 16px; font-weight: 600; color: var(--color-text-primary); margin-bottom: var(--space-1);">Authentication Required</h1>
+      <p style="font-size: 12px; color: var(--color-text-secondary); line-height: 18px; margin-bottom: var(--space-4);">This monitoring console is password-protected. Enter the administrator password to unlock access.</p>
+      
+      <form id="form-auth" style="display: flex; flex-direction: column; gap: var(--space-3);">
+        <div class="form-group">
+          <label class="form-label" for="input-auth-password">Console Password</label>
+          <input type="password" id="input-auth-password" class="form-input" placeholder="Enter password" required autofocus autocomplete="current-password">
+        </div>
+        
+        <div id="auth-error-msg" style="display: none; font-size: 12px; color: var(--color-error); padding: var(--space-2) var(--space-3); background-color: var(--color-error-subtle); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-sm);"></div>
+        
+        <button type="submit" id="btn-auth-submit" class="btn btn-primary" style="width: 100%; height: 36px; margin-top: var(--space-1);">
+          <span>Unlock Console</span>
+        </button>
+      </form>
+      
+      <div style="margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--color-border-subtle); font-size: 11px; color: var(--color-text-tertiary); text-align: center;">
+        Default password is <code>admin</code> (set via <code>SITE_PASSWORD</code>)
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Shelf -->
   <div id="toast-shelf" aria-live="polite"></div>
 
@@ -894,6 +929,10 @@
       <div class="telemetry-item">
         Latency: <strong id="metric-latency">-- ms</strong>
       </div>
+      <button id="btn-lock-console" class="icon-button" title="Lock Console Session" style="height: 26px; font-size: 11px; margin-left: var(--space-1);">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Lock
+      </button>
     </div>
   </header>
 
@@ -1471,6 +1510,83 @@
         logConsole.innerHTML = '';
       };
 
+      // Authentication Gate Logic
+      const authGate = document.getElementById('auth-gate');
+      const formAuth = document.getElementById('form-auth');
+      const inputAuthPassword = document.getElementById('input-auth-password');
+      const btnAuthSubmit = document.getElementById('btn-auth-submit');
+      const authErrorMsg = document.getElementById('auth-error-msg');
+      const btnLockConsole = document.getElementById('btn-lock-console');
+
+      async function checkAuthSession() {
+        try {
+          const res = await fetch('/api/auth', { credentials: 'include' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.authenticated) {
+              authGate.style.display = 'none';
+              checkServerProxy();
+              btnAutoDetect.click();
+              return true;
+            }
+          }
+        } catch(e) {}
+
+        authGate.style.display = 'flex';
+        inputAuthPassword.focus();
+        return false;
+      }
+
+      formAuth.onsubmit = async (e) => {
+        e.preventDefault();
+        const password = inputAuthPassword.value.trim();
+        if (!password) return;
+
+        btnAuthSubmit.disabled = true;
+        btnAuthSubmit.innerHTML = '<span>Verifying...</span>';
+        authErrorMsg.style.display = 'none';
+
+        try {
+          const res = await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ password })
+          });
+
+          const data = await res.json();
+          if (res.ok && data.success) {
+            window.__authToken = data.token;
+            authGate.style.display = 'none';
+            showToast('Console unlocked successfully', 'success');
+            checkServerProxy();
+            btnAutoDetect.click();
+          } else {
+            authErrorMsg.textContent = data.error || 'Invalid password. Access denied.';
+            authErrorMsg.style.display = 'block';
+            inputAuthPassword.select();
+          }
+        } catch (err) {
+          authErrorMsg.textContent = 'Connection error: ' + err.message;
+          authErrorMsg.style.display = 'block';
+        } finally {
+          btnAuthSubmit.disabled = false;
+          btnAuthSubmit.innerHTML = '<span>Unlock Console</span>';
+        }
+      };
+
+      btnLockConsole.onclick = async () => {
+        try {
+          await fetch('/api/auth?logout=1', { method: 'POST', credentials: 'include' });
+        } catch(e) {}
+        window.__authToken = null;
+        viewer.disconnect();
+        authGate.style.display = 'flex';
+        inputAuthPassword.value = '';
+        inputAuthPassword.focus();
+        showToast('Console locked');
+      };
+
       // Healthcheck Reverse Proxy
       async function checkServerProxy() {
         if (window.location.protocol === 'file:') {
@@ -1481,7 +1597,7 @@
         }
 
         try {
-          const res = await fetch('/api/status', { cache: 'no-store' });
+          const res = await fetch('/api/status', { cache: 'no-store', credentials: 'include' });
           if (res.ok) {
             const data = await res.json();
             setStatusPill(statusProxy, 'active', `Proxy: Active (${window.location.port || '80'})`);
@@ -1495,8 +1611,8 @@
         }
       }
 
-      checkServerProxy();
-      btnAutoDetect.click();
+      // Initial entry: check auth session
+      checkAuthSession();
     })();
   </script>
 </body>

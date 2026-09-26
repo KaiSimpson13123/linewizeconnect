@@ -14,11 +14,36 @@ const https = require('https');
 const url = require('url');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 // Configuration
 const DEFAULT_PORT = parseInt(process.env.PORT, 10) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const ROOT_DIR = __dirname;
+
+function getSitePassword() {
+  return process.env.SITE_PASSWORD || process.env.ADMIN_PASSWORD || 'admin';
+}
+
+function getExpectedToken() {
+  const password = getSitePassword();
+  return crypto.createHash('sha256').update(`linewize_salt_v1:${password}`).digest('hex');
+}
+
+function verifyAuth(req, parsedUrl) {
+  const expected = getExpectedToken();
+  const cookieHeader = req.headers.cookie || '';
+  const match = cookieHeader.match(/lw_auth=([a-f0-9]+)/);
+  if (match && match[1] === expected) return true;
+
+  const authHeader = req.headers['authorization'] || '';
+  if (authHeader.startsWith('Bearer ') && authHeader.slice(7).trim() === expected) return true;
+
+  const tokenQuery = parsedUrl.searchParams.get('token') || parsedUrl.searchParams.get('auth');
+  if (tokenQuery && tokenQuery === expected) return true;
+
+  return false;
+}
 
 // MIME types for static files
 const MIME_TYPES = {
@@ -373,8 +398,10 @@ const server = http.createServer((req, res) => {
       version: '1.0.0',
       uptime: Math.round(process.uptime()),
       proxyEnabled: true,
+      authRequired: true,
       routes: {
         webApp: '/',
+        auth: '/api/auth',
         apiProxy: '/api/proxy?url=<target>',
         sseProxy: '/api/sse?url=<target>',
         gatewayProxy: '/api/gateway/:region/*'
@@ -382,7 +409,55 @@ const server = http.createServer((req, res) => {
     }, null, 2));
   }
 
-  // 2. SSE Proxy
+  // 2. Authentication Endpoint (/api/auth)
+  if (pathname === '/api/auth') {
+    setCorsHeaders(res);
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+    if (req.method === 'GET') {
+      const isAuthed = verifyAuth(req, parsedUrl);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ authenticated: isAuthed }));
+    }
+
+    if (req.method === 'DELETE' || searchParams.get('logout') === '1') {
+      res.setHeader('Set-Cookie', 'lw_auth=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, message: 'Logged out' }));
+    }
+
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', () => {
+        let parsed = {};
+        try { parsed = JSON.parse(body); } catch(e) {}
+        const password = parsed.password || searchParams.get('password');
+        if (password === getSitePassword()) {
+          const token = getExpectedToken();
+          res.setHeader('Set-Cookie', `lw_auth=${token}; Path=/; Max-Age=604800; SameSite=Lax; HttpOnly`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: true, token: token }));
+        } else {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'Invalid password' }));
+        }
+      });
+      return;
+    }
+  }
+
+  // Enforce Authentication on Proxy APIs
+  if (pathname === '/api/proxy' || pathname === '/api/sse' || pathname === '/api/events' || pathname.startsWith('/api/gateway/')) {
+    if (!verifyAuth(req, parsedUrl)) {
+      setCorsHeaders(res);
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Unauthorized: Session or password token required' }));
+    }
+  }
+
+  // 3. SSE Proxy
   if (pathname === '/api/sse' || pathname === '/api/events') {
     const targetUrl = searchParams.get('url');
     return handleSseProxy(req, res, targetUrl);

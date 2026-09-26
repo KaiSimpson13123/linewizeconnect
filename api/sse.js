@@ -5,14 +5,21 @@
 
 const https = require('https');
 const http = require('http');
+const { verifyAuth } = require('./_auth');
 
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', '*');
 
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
+  }
+
+  // Enforce Password Authentication
+  if (!verifyAuth(req)) {
+    return res.status(401).json({ error: 'Unauthorized: Session or password token required' });
   }
 
   const targetUrlStr = req.query.url;

@@ -283,11 +283,14 @@
           };
           if (deviceId || user) {
             headers['baggage'] = `applianceId=${deviceId},studentUsername=${user},agentType=chrome,agentVersion=${version}`;
+          if (typeof window !== 'undefined' && window.__authToken) {
+            headers['Authorization'] = `Bearer ${window.__authToken}`;
           }
 
           const response = await fetch(gatewayUrl, {
             method: 'GET',
-            headers: headers
+            headers: headers,
+            credentials: 'include'
           });
 
           if (response.ok) {
@@ -327,8 +330,12 @@
             ? `${this.options.proxyUrl}?url=${encodeURIComponent(directUserIdUrl)}`
             : directUserIdUrl;
 
+          const reqHeaders = { 'Accept': 'application/json' };
+          if (typeof window !== 'undefined' && window.__authToken) {
+            reqHeaders['Authorization'] = `Bearer ${window.__authToken}`;
+          }
           try {
-            const res = await fetch(userIdUrl, { headers: { 'Accept': 'application/json' } });
+            const res = await fetch(userIdUrl, { headers: reqHeaders, credentials: 'include' });
             if (res.ok) {
               const uData = await res.json();
               this._log(`[Method 4] User Discovery succeeded on [${reg}]:`, uData);
@@ -416,14 +423,15 @@
       const events = 'CONFIG_UPDATE,OPEN_TAB,CLOSE_TAB,MESSAGE,CLASS_STARTED,POLICY_UPDATE,INIT_P2P,HEARTBEAT';
       const cleanUrl = eventServiceUrl.replace(/\/+$/, '');
       const sseUrl = `${cleanUrl}/events/v2/appliance/${deviceId}/recipient/${encodeURIComponent(targetUser)}?events=${events}`;
+      const authTokenParam = (typeof window !== 'undefined' && window.__authToken) ? `&token=${window.__authToken}` : '';
       const finalSseUrl = this.options.useProxy
-        ? `${this.options.sseProxyUrl}?url=${encodeURIComponent(sseUrl)}`
+        ? `${this.options.sseProxyUrl}?url=${encodeURIComponent(sseUrl)}${authTokenParam}`
         : sseUrl;
 
       this._log(`Connecting EventSource to: ${finalSseUrl} ${this.options.useProxy ? '(via SSE CORS proxy)' : ''}`);
 
       try {
-        this.eventSource = new EventSource(finalSseUrl, { withCredentials: !this.options.useProxy });
+        this.eventSource = new EventSource(finalSseUrl, { withCredentials: true });
 
         this.eventSource.onopen = () => {
           this._setStatus('event_service_connected', { sseUrl });
