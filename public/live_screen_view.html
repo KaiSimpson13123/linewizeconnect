@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Live Screen View — Linewize Connect</title>
-  <meta name="description" content="Peer-to-peer classroom device screen monitoring and telemetry console for Linewize Connect.">
+  <meta name="description" content="Enterprise classroom device screen monitoring and peer-to-peer telemetry console for Linewize Connect.">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
   <script src="live_screen_view.js"></script>
   <style>
@@ -27,27 +27,29 @@
       --space-10: 40px;
       --space-12: 48px;
 
-      /* Color System: Controlled Enterprise Slate Palette */
-      --color-bg-canvas: #090a0d;
-      --color-bg-surface: #111318;
-      --color-bg-surface-elevated: #181b22;
-      --color-bg-surface-hover: #1f232c;
-      --color-bg-surface-active: #262b36;
+      /* Colors: Precision Enterprise Slate & Carbon */
+      --color-bg-base: #08090d;
+      --color-bg-subtle: #0d1017;
+      --color-bg-surface: #121620;
+      --color-bg-elevated: #181e2b;
+      --color-bg-hover: #1f2738;
+      --color-bg-active: #263248;
 
-      --color-border-subtle: #232731;
-      --color-border-medium: #303644;
+      --color-border-subtle: rgba(255, 255, 255, 0.07);
+      --color-border-medium: rgba(255, 255, 255, 0.12);
+      --color-border-strong: rgba(255, 255, 255, 0.20);
       --color-border-focus: #3b82f6;
 
-      --color-text-primary: #f3f4f6;
-      --color-text-secondary: #9ca3af;
-      --color-text-tertiary: #6b7280;
-      --color-text-disabled: #4b5563;
+      --color-text-primary: #f8fafc;
+      --color-text-secondary: #94a3b8;
+      --color-text-tertiary: #64748b;
+      --color-text-disabled: #475569;
 
-      /* Semantic Status Colors (Clean, accessible, no neon) */
+      /* Semantic Accents */
       --color-brand: #2563eb;
       --color-brand-hover: #1d4ed8;
-      --color-brand-subtle: rgba(37, 99, 235, 0.12);
-      
+      --color-brand-subtle: rgba(37, 99, 235, 0.14);
+
       --color-success: #10b981;
       --color-success-subtle: rgba(16, 185, 129, 0.12);
       --color-warning: #f59e0b;
@@ -60,18 +62,19 @@
       --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       --font-mono: 'JetBrains Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-      /* Unified Component Radius */
+      /* Border Radius */
       --radius-sm: 4px;
       --radius-base: 6px;
-      --radius-lg: 8px;
+      --radius-lg: 10px;
+      --radius-xl: 14px;
 
-      /* Elevation / Shadows */
-      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
-      --shadow-base: 0 4px 12px rgba(0, 0, 0, 0.35);
-      --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.45);
+      /* Shadows */
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+      --shadow-base: 0 4px 16px rgba(0, 0, 0, 0.5);
+      --shadow-lg: 0 20px 48px -8px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.07);
     }
 
-    /* Reset & Global */
+    /* Reset & Base */
     *, *::before, *::after {
       box-sizing: border-box;
       margin: 0;
@@ -79,7 +82,7 @@
     }
 
     body {
-      background-color: var(--color-bg-canvas);
+      background-color: var(--color-bg-base);
       color: var(--color-text-primary);
       font-family: var(--font-sans);
       font-size: 13px;
@@ -90,15 +93,17 @@
       flex-direction: column;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+      background-size: 24px 24px;
     }
 
-    /* Scrollbar */
+    /* Scrollbars */
     ::-webkit-scrollbar {
       width: 6px;
       height: 6px;
     }
     ::-webkit-scrollbar-track {
-      background: var(--color-bg-canvas);
+      background: var(--color-bg-base);
     }
     ::-webkit-scrollbar-thumb {
       background: var(--color-border-medium);
@@ -109,11 +114,188 @@
     }
 
     /* ==========================================================================
-       HEADER: LINEWIZE CONNECT APPLICATION SHELL
+       AUTHENTICATION LOCK SCREEN GATE (MODAL OVERLAY)
+       ========================================================================== */
+    #auth-gate {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: radial-gradient(circle at 50% 38%, rgba(37, 99, 235, 0.08) 0%, rgba(8, 9, 13, 0.96) 72%);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-4);
+    }
+
+    .auth-card {
+      width: 100%;
+      max-width: 400px;
+      background: linear-gradient(180deg, #131722 0%, #0d1017 100%);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-xl);
+      padding: var(--space-8);
+      box-shadow: var(--shadow-lg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .auth-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 12%;
+      right: 12%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.8), transparent);
+    }
+
+    .auth-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      margin-bottom: var(--space-5);
+    }
+
+    .auth-brand-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-base);
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(30, 58, 138, 0.4) 100%);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #60a5fa;
+      flex-shrink: 0;
+    }
+
+    .auth-brand-text {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .auth-brand-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .auth-brand-badge {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: #3b82f6;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+
+    .auth-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      letter-spacing: -0.02em;
+      margin-bottom: var(--space-1);
+    }
+
+    .auth-desc {
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      line-height: 20px;
+      margin-bottom: var(--space-6);
+    }
+
+    .input-with-actions {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-prefix-icon {
+      position: absolute;
+      left: 12px;
+      color: var(--color-text-tertiary);
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-with-actions input {
+      padding-left: 36px;
+      padding-right: 40px;
+      letter-spacing: 1px;
+    }
+
+    .btn-toggle-eye {
+      position: absolute;
+      right: 8px;
+      background: none;
+      border: none;
+      color: var(--color-text-tertiary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px;
+      border-radius: var(--radius-sm);
+      transition: color 0.15s, background-color 0.15s;
+    }
+    .btn-toggle-eye:hover {
+      color: var(--color-text-primary);
+      background-color: var(--color-bg-hover);
+    }
+
+    .caps-lock-badge {
+      display: none;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: #fbbf24;
+      background-color: var(--color-warning-subtle);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: var(--radius-sm);
+      padding: 3px 8px;
+      margin-top: var(--space-2);
+    }
+
+    .auth-error-box {
+      display: none;
+      font-size: 12px;
+      color: #fca5a5;
+      padding: var(--space-2) var(--space-3);
+      background-color: var(--color-error-subtle);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      border-radius: var(--radius-sm);
+      margin-top: var(--space-2);
+      animation: shake 0.25s ease-in-out;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-4px); }
+      75% { transform: translateX(4px); }
+    }
+
+    .auth-footer-badge {
+      margin-top: var(--space-6);
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--color-border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+    }
+
+    /* ==========================================================================
+       TOP APPLICATION HEADER
        ========================================================================== */
     .app-header {
-      height: 52px;
-      background-color: var(--color-bg-surface);
+      height: 54px;
+      background-color: rgba(18, 22, 32, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--color-border-subtle);
       padding: 0 var(--space-4);
       display: flex;
@@ -124,44 +306,45 @@
       z-index: 50;
     }
 
-    .brand-section {
+    .brand-cluster {
       display: flex;
       align-items: center;
       gap: var(--space-3);
     }
 
-    .brand-logo {
-      width: 24px;
-      height: 24px;
-      background-color: var(--color-brand);
+    .brand-logo-mark {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
       border-radius: var(--radius-sm);
       display: flex;
       align-items: center;
       justify-content: center;
       color: #ffffff;
       flex-shrink: 0;
+      box-shadow: 0 1px 4px rgba(37, 99, 235, 0.4);
     }
 
-    .brand-title {
+    .brand-title-text {
       font-size: 13px;
       font-weight: 600;
       color: var(--color-text-primary);
       letter-spacing: -0.01em;
     }
 
-    .brand-divider {
-      width: 1px;
-      height: 16px;
-      background-color: var(--color-border-subtle);
+    .brand-live-tag {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: #60a5fa;
+      background-color: rgba(37, 99, 235, 0.15);
+      border: 1px solid rgba(37, 99, 235, 0.35);
+      padding: 1px 6px;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
     }
 
-    .brand-context {
-      font-size: 13px;
-      font-weight: 400;
-      color: var(--color-text-secondary);
-    }
-
-    /* System Status Indicators in Header */
     .header-status-deck {
       display: flex;
       align-items: center;
@@ -172,14 +355,14 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 8px;
+      padding: 3px 8px;
       border-radius: var(--radius-sm);
-      background-color: var(--color-bg-surface-elevated);
+      background-color: var(--color-bg-elevated);
       border: 1px solid var(--color-border-subtle);
       font-family: var(--font-mono);
       font-size: 11px;
-      line-height: 14px;
       color: var(--color-text-secondary);
+      transition: all 0.15s ease;
     }
 
     .status-dot {
@@ -188,6 +371,7 @@
       border-radius: 50%;
       background-color: var(--color-text-tertiary);
       flex-shrink: 0;
+      transition: background-color 0.15s ease, box-shadow 0.15s ease;
     }
 
     .status-pill.is-active {
@@ -197,6 +381,7 @@
     }
     .status-pill.is-active .status-dot {
       background-color: var(--color-success);
+      box-shadow: 0 0 6px #10b981;
     }
 
     .status-pill.is-pending {
@@ -206,6 +391,7 @@
     }
     .status-pill.is-pending .status-dot {
       background-color: var(--color-warning);
+      box-shadow: 0 0 6px #f59e0b;
     }
 
     .status-pill.is-error {
@@ -215,21 +401,22 @@
     }
     .status-pill.is-error .status-dot {
       background-color: var(--color-error);
+      box-shadow: 0 0 6px #ef4444;
     }
 
-    .telemetry-item {
+    .telemetry-chip {
       font-family: var(--font-mono);
       font-size: 11px;
       color: var(--color-text-tertiary);
       padding: 0 var(--space-2);
     }
-    .telemetry-item strong {
+    .telemetry-chip strong {
       color: var(--color-text-primary);
       font-weight: 500;
     }
 
     /* ==========================================================================
-       MAIN CONTAINER & LAYOUT STRUCTURE
+       MAIN APP WORKSPACE
        ========================================================================== */
     .app-main {
       flex: 1;
@@ -242,7 +429,7 @@
       gap: var(--space-4);
     }
 
-    /* Protocol notice banner (only shown on file://) */
+    /* Protocol notice banner */
     .protocol-banner {
       display: none;
       background-color: var(--color-warning-subtle);
@@ -262,7 +449,7 @@
     }
 
     /* ==========================================================================
-       CARD 1: CONNECTION & GATEWAY CONFIGURATION PANEL
+       CARD 1: CONNECTION PARAMETERS
        ========================================================================== */
     .config-panel {
       background-color: var(--color-bg-surface);
@@ -270,6 +457,17 @@
       border-radius: var(--radius-lg);
       padding: var(--space-4);
       box-shadow: var(--shadow-sm);
+      position: relative;
+    }
+
+    .config-panel::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 10%;
+      right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
     }
 
     .config-panel-header {
@@ -280,16 +478,19 @@
     }
 
     .config-title {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.06em;
       color: var(--color-text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .config-grid {
       display: grid;
-      grid-template-columns: 1.8fr 1.4fr 1fr 1.8fr auto;
+      grid-template-columns: 1.8fr 1.4fr 1.1fr 1.8fr auto;
       gap: var(--space-3);
       align-items: flex-end;
     }
@@ -336,8 +537,8 @@
     }
 
     .form-input {
-      height: 34px;
-      background-color: var(--color-bg-surface-elevated);
+      height: 36px;
+      background-color: var(--color-bg-elevated);
       border: 1px solid var(--color-border-medium);
       border-radius: var(--radius-base);
       padding: 0 var(--space-3);
@@ -345,13 +546,14 @@
       font-family: var(--font-mono);
       font-size: 12px;
       outline: none;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
       width: 100%;
     }
 
     .form-input:focus {
       border-color: var(--color-border-focus);
-      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+      background-color: var(--color-bg-subtle);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.22);
     }
 
     .form-input::placeholder {
@@ -368,7 +570,7 @@
     }
 
     select.form-input option {
-      background-color: var(--color-bg-surface-elevated);
+      background-color: var(--color-bg-elevated);
       color: var(--color-text-primary);
     }
 
@@ -380,7 +582,7 @@
     }
 
     .btn {
-      height: 34px;
+      height: 36px;
       padding: 0 var(--space-3);
       border-radius: var(--radius-base);
       font-family: var(--font-sans);
@@ -394,7 +596,11 @@
       border: 1px solid transparent;
       outline: none;
       white-space: nowrap;
-      transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+      transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.08s ease;
+    }
+
+    .btn:active {
+      transform: translateY(1px);
     }
 
     .btn svg {
@@ -404,41 +610,42 @@
     }
 
     .btn-primary {
-      background-color: var(--color-brand);
+      background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
       color: #ffffff;
-      border-color: var(--color-brand);
+      border-color: #3b82f6;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 3px rgba(0, 0, 0, 0.4);
     }
     .btn-primary:hover {
-      background-color: var(--color-brand-hover);
-      border-color: var(--color-brand-hover);
+      background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+      border-color: #60a5fa;
     }
 
     .btn-secondary {
-      background-color: var(--color-bg-surface-elevated);
+      background-color: var(--color-bg-elevated);
       border-color: var(--color-border-medium);
       color: var(--color-text-primary);
     }
     .btn-secondary:hover {
-      background-color: var(--color-bg-surface-hover);
-      border-color: var(--color-text-tertiary);
+      background-color: var(--color-bg-hover);
+      border-color: var(--color-border-strong);
     }
 
     .btn-danger {
-      background-color: var(--color-error);
+      background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
       color: #ffffff;
-      border-color: var(--color-error);
+      border-color: #f87171;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 3px rgba(0, 0, 0, 0.4);
     }
     .btn-danger:hover {
-      background-color: var(--color-error-hover);
-      border-color: var(--color-error-hover);
+      background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%);
     }
 
     .btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
+      transform: none;
     }
 
-    /* Spinner */
     .spinner {
       animation: spin 0.8s linear infinite;
     }
@@ -447,14 +654,14 @@
     }
 
     /* ==========================================================================
-       WORKSPACE: SPLIT SCREEN (VIEWPORT & INSPECTOR)
+       WORKSPACE: MONITOR & INSPECTOR SPLIT
        ========================================================================== */
     .workspace-grid {
       display: grid;
-      grid-template-columns: 1fr 360px;
+      grid-template-columns: 1fr 380px;
       gap: var(--space-4);
       flex: 1;
-      min-height: 520px;
+      min-height: 540px;
     }
 
     @media (max-width: 1080px) {
@@ -495,12 +702,12 @@
     .status-tag {
       font-family: var(--font-mono);
       font-size: 10px;
-      font-weight: 500;
-      padding: 2px 6px;
+      font-weight: 600;
+      padding: 2px 7px;
       border-radius: var(--radius-sm);
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      background-color: var(--color-bg-surface-elevated);
+      background-color: var(--color-bg-elevated);
       color: var(--color-text-tertiary);
       border: 1px solid var(--color-border-subtle);
     }
@@ -535,12 +742,12 @@
       font-size: 12px;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 5px;
       cursor: pointer;
       transition: background-color 0.15s, color 0.15s, border-color 0.15s;
     }
     .icon-button:hover {
-      background-color: var(--color-bg-surface-hover);
+      background-color: var(--color-bg-hover);
       color: var(--color-text-primary);
       border-color: var(--color-border-medium);
     }
@@ -548,13 +755,15 @@
     /* Screen Canvas Stage */
     .screen-stage {
       flex: 1;
-      background-color: #030406;
+      background-color: #030407;
       display: flex;
       align-items: center;
       justify-content: center;
       position: relative;
       overflow: hidden;
-      min-height: 420px;
+      min-height: 440px;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 20px 20px;
     }
 
     #live-screen-feed {
@@ -562,9 +771,11 @@
       max-height: 100%;
       object-fit: contain;
       display: none;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.85);
+      border-radius: 2px;
     }
 
-    /* Grounded Empty State */
+    /* Clean Empty State */
     .empty-stage-state {
       display: flex;
       flex-direction: column;
@@ -572,16 +783,16 @@
       justify-content: center;
       text-align: center;
       padding: var(--space-8);
-      max-width: 420px;
+      max-width: 440px;
       color: var(--color-text-tertiary);
     }
 
     .empty-stage-icon {
-      width: 40px;
-      height: 40px;
+      width: 48px;
+      height: 48px;
       border-radius: var(--radius-base);
-      background-color: var(--color-bg-surface-elevated);
-      border: 1px solid var(--color-border-subtle);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+      border: 1px solid var(--color-border-medium);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -590,7 +801,7 @@
     }
 
     .empty-stage-title {
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 500;
       color: var(--color-text-primary);
       margin-bottom: var(--space-1);
@@ -602,9 +813,25 @@
       color: var(--color-text-secondary);
     }
 
+    .empty-stage-hints {
+      display: flex;
+      gap: var(--space-2);
+      margin-top: var(--space-4);
+    }
+
+    .kbd-chip {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--color-text-tertiary);
+      background-color: var(--color-bg-elevated);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 2px 6px;
+    }
+
     /* Viewport Footer Bar */
     .viewport-footer {
-      height: 36px;
+      height: 38px;
       padding: 0 var(--space-4);
       background-color: var(--color-bg-surface);
       border-top: 1px solid var(--color-border-subtle);
@@ -674,7 +901,7 @@
     .tab-count-badge {
       font-family: var(--font-mono);
       font-size: 10px;
-      background-color: var(--color-bg-surface-elevated);
+      background-color: var(--color-bg-elevated);
       color: var(--color-text-tertiary);
       padding: 1px 5px;
       border-radius: var(--radius-sm);
@@ -698,6 +925,21 @@
     .tab-filter-container {
       padding: var(--space-2) var(--space-3);
       border-bottom: 1px solid var(--color-border-subtle);
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .tab-filter-icon {
+      position: absolute;
+      left: 20px;
+      color: var(--color-text-tertiary);
+      pointer-events: none;
+    }
+
+    .tab-filter-container input {
+      padding-left: 26px;
+      height: 30px;
     }
 
     .student-tabs-list {
@@ -721,7 +963,7 @@
     }
 
     .student-tab-item:hover {
-      background-color: var(--color-bg-surface-hover);
+      background-color: var(--color-bg-hover);
     }
 
     .student-tab-item.is-active {
@@ -734,7 +976,7 @@
       height: 16px;
       border-radius: 2px;
       flex-shrink: 0;
-      background-color: var(--color-bg-surface-elevated);
+      background-color: var(--color-bg-elevated);
     }
 
     .tab-text-block {
@@ -782,8 +1024,8 @@
     }
 
     .log-filter-select {
-      height: 24px;
-      background-color: var(--color-bg-surface-elevated);
+      height: 26px;
+      background-color: var(--color-bg-elevated);
       border: 1px solid var(--color-border-subtle);
       border-radius: var(--radius-sm);
       color: var(--color-text-secondary);
@@ -795,10 +1037,10 @@
     #log-console {
       flex: 1;
       padding: var(--space-3);
-      background-color: #060709;
+      background-color: #06070a;
       font-family: var(--font-mono);
       font-size: 11px;
-      line-height: 16px;
+      line-height: 17px;
       color: #d1d5db;
       overflow-y: auto;
       max-height: 480px;
@@ -822,7 +1064,7 @@
     .log-line.warning .log-line-msg { color: #fbbf24; }
     .log-line.info .log-line-msg { color: #93c5fd; }
 
-    /* In-App Toast Notifications (Clean, non-intrusive) */
+    /* In-App Toast Notifications */
     #toast-shelf {
       position: fixed;
       bottom: var(--space-4);
@@ -835,7 +1077,7 @@
     }
 
     .toast-item {
-      background-color: var(--color-bg-surface-elevated);
+      background-color: var(--color-bg-elevated);
       border: 1px solid var(--color-border-medium);
       border-radius: var(--radius-base);
       padding: var(--space-2) var(--space-3);
@@ -857,36 +1099,57 @@
 <body>
 
   <!-- Authentication Lock Screen Gate -->
-  <div id="auth-gate" style="position: fixed; inset: 0; z-index: 1000; background-color: var(--color-bg-canvas); display: flex; align-items: center; justify-content: center; padding: var(--space-4);">
-    <div style="width: 100%; max-width: 380px; background-color: var(--color-bg-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); padding: var(--space-6); box-shadow: var(--shadow-lg);">
-      <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4);">
-        <div class="brand-logo" style="width: 28px; height: 28px;">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+  <div id="auth-gate">
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="auth-brand-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
         </div>
-        <div>
-          <div style="font-size: 13px; font-weight: 600; color: var(--color-text-primary);">Linewize Connect</div>
-          <div style="font-size: 11px; color: var(--color-text-tertiary); font-family: var(--font-mono);">Access Control</div>
+        <div class="auth-brand-text">
+          <span class="auth-brand-name">Linewize Connect</span>
+          <span class="auth-brand-badge">Secure Console Gate</span>
         </div>
       </div>
-      
-      <h1 style="font-size: 16px; font-weight: 600; color: var(--color-text-primary); margin-bottom: var(--space-1);">Authentication Required</h1>
-      <p style="font-size: 12px; color: var(--color-text-secondary); line-height: 18px; margin-bottom: var(--space-4);">This monitoring console is password-protected. Enter the administrator password to unlock access.</p>
-      
-      <form id="form-auth" style="display: flex; flex-direction: column; gap: var(--space-3);">
+
+      <h1 class="auth-title">Authentication Required</h1>
+      <p class="auth-desc">Enter console administrator credentials to access live screen telemetry and peer-to-peer streams.</p>
+
+      <form id="form-auth">
         <div class="form-group">
           <label class="form-label" for="input-auth-password">Console Password</label>
-          <input type="password" id="input-auth-password" class="form-input" placeholder="Enter password" required autofocus autocomplete="current-password">
+          <div class="input-with-actions">
+            <span class="input-prefix-icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="16" r="1"/>
+                <rect x="3" y="10" width="18" height="12" rx="2"/>
+                <path d="M7 10V7a5 5 0 0 1 10 0v3"/>
+              </svg>
+            </span>
+            <input type="password" id="input-auth-password" class="form-input" placeholder="Enter console password..." required autofocus autocomplete="current-password">
+            <button type="button" id="btn-toggle-password" class="btn-toggle-eye" title="Toggle password visibility">
+              <svg id="eye-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+          <div id="caps-lock-warning" class="caps-lock-badge">Caps Lock is ON</div>
+          <div id="auth-error-msg" class="auth-error-box"></div>
         </div>
-        
-        <div id="auth-error-msg" style="display: none; font-size: 12px; color: var(--color-error); padding: var(--space-2) var(--space-3); background-color: var(--color-error-subtle); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-sm);"></div>
-        
-        <button type="submit" id="btn-auth-submit" class="btn btn-primary" style="width: 100%; height: 36px; margin-top: var(--space-1);">
+
+        <button type="submit" id="btn-auth-submit" class="btn btn-primary" style="width: 100%; height: 38px; margin-top: var(--space-4);">
           <span>Unlock Console</span>
         </button>
       </form>
-      
-      <div style="margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--color-border-subtle); font-size: 11px; color: var(--color-text-tertiary); text-align: center;">
-        Default password is <code>admin</code> (set via <code>SITE_PASSWORD</code>)
+
+      <div class="auth-footer-badge">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <span>Authorized Personnel Only &bull; End-to-End Encrypted Session</span>
       </div>
     </div>
   </div>
@@ -894,19 +1157,18 @@
   <!-- Toast Notification Shelf -->
   <div id="toast-shelf" aria-live="polite"></div>
 
-  <!-- Header -->
+  <!-- App Header -->
   <header class="app-header">
-    <div class="brand-section">
-      <div class="brand-logo" aria-hidden="true">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <div class="brand-cluster">
+      <div class="brand-logo-mark" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
           <line x1="8" y1="21" x2="16" y2="21"/>
           <line x1="12" y1="17" x2="12" y2="21"/>
         </svg>
       </div>
-      <span class="brand-title">Linewize Connect</span>
-      <span class="brand-divider"></span>
-      <span class="brand-context">Live Screen Monitoring</span>
+      <span class="brand-title-text">Linewize Connect</span>
+      <span class="brand-live-tag">Live Screen Monitor</span>
     </div>
 
     <!-- Status Deck -->
@@ -923,20 +1185,23 @@
         <span class="status-dot"></span>
         <span class="label">Stream: Idle</span>
       </div>
-      <div class="telemetry-item">
+      <div class="telemetry-chip">
         FPS: <strong id="metric-fps">0</strong>
       </div>
-      <div class="telemetry-item">
+      <div class="telemetry-chip">
         Latency: <strong id="metric-latency">-- ms</strong>
       </div>
-      <button id="btn-lock-console" class="icon-button" title="Lock Console Session" style="height: 26px; font-size: 11px; margin-left: var(--space-1);">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <button id="btn-lock-console" class="icon-button" title="Lock Console Session" style="height: 28px; font-size: 11px; margin-left: var(--space-1);">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
         Lock
       </button>
     </div>
   </header>
 
-  <!-- Main Application Area -->
+  <!-- Main Container -->
   <main class="app-main">
     <!-- File Protocol Warning Banner -->
     <div id="banner-file-protocol" class="protocol-banner">
@@ -950,7 +1215,10 @@
     <!-- Configuration Panel -->
     <section class="config-panel" aria-label="Session Configuration">
       <div class="config-panel-header">
-        <h2 class="config-title">Connection Parameters</h2>
+        <h2 class="config-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Session Target &amp; Gateway Configuration
+        </h2>
       </div>
 
       <div class="config-grid">
@@ -1031,11 +1299,11 @@
             </div>
           </div>
           <div class="viewport-actions">
-            <button id="btn-snapshot" class="icon-button" title="Capture current frame as PNG">
+            <button id="btn-snapshot" class="icon-button" title="Capture current frame as PNG (S)">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
               Capture Frame
             </button>
-            <button id="btn-fullscreen" class="icon-button" title="Toggle Fullscreen View">
+            <button id="btn-fullscreen" class="icon-button" title="Toggle Fullscreen View (F)">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
               Fullscreen
             </button>
@@ -1047,14 +1315,18 @@
           <!-- Calm Empty State -->
           <div id="screen-placeholder" class="empty-stage-state">
             <div class="empty-stage-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
                 <line x1="8" y1="21" x2="16" y2="21"/>
                 <line x1="12" y1="17" x2="12" y2="21"/>
               </svg>
             </div>
             <p class="empty-stage-title">No Active Stream Feed</p>
-            <p class="empty-stage-desc">Specify a student email or user ID, query the gateway to resolve configuration, and click Start Stream to begin real-time peer-to-peer view.</p>
+            <p class="empty-stage-desc">Specify a student email or user ID above, query the gateway to resolve configuration, and click Start Stream to begin real-time peer-to-peer telemetry.</p>
+            <div class="empty-stage-hints">
+              <span class="kbd-chip"><kbd>F</kbd> Fullscreen</span>
+              <span class="kbd-chip"><kbd>S</kbd> Snapshot</span>
+            </div>
           </div>
 
           <!-- Active Live Screenshot Image -->
@@ -1091,7 +1363,13 @@
           <!-- Pane 1: Student Open Tabs -->
           <div id="pane-tabs" class="inspector-pane" role="tabpanel" aria-labelledby="tab-nav-tabs">
             <div class="tab-filter-container">
-              <input type="text" id="input-tab-filter" class="form-input" style="height: 28px; font-size: 11px;" placeholder="Filter student tabs..." spellcheck="false">
+              <span class="tab-filter-icon">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8"/>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+              </span>
+              <input type="text" id="input-tab-filter" class="form-input" style="font-size: 11px;" placeholder="Filter student tabs..." spellcheck="false">
             </div>
             <div id="tab-list-container" class="student-tabs-list">
               <div style="padding: var(--space-8) var(--space-4); text-align: center; color: var(--color-text-tertiary); font-size: 12px;">
@@ -1163,12 +1441,53 @@
       const toastShelf = document.getElementById('toast-shelf');
       const bannerFileProtocol = document.getElementById('banner-file-protocol');
 
+      // Authentication Elements
+      const authGate = document.getElementById('auth-gate');
+      const formAuth = document.getElementById('form-auth');
+      const inputAuthPassword = document.getElementById('input-auth-password');
+      const btnAuthSubmit = document.getElementById('btn-auth-submit');
+      const authErrorMsg = document.getElementById('auth-error-msg');
+      const capsLockWarning = document.getElementById('caps-lock-warning');
+      const btnLockConsole = document.getElementById('btn-lock-console');
+      const btnTogglePassword = document.getElementById('btn-toggle-password');
+
       let currentFrameDataUrl = null;
       let sessionStartTime = null;
       let sessionTimer = null;
       let cachedTabs = [];
 
-      // Grounded In-App Toast
+      // Password Toggle
+      btnTogglePassword.onclick = () => {
+        const isPassword = inputAuthPassword.type === 'password';
+        inputAuthPassword.type = isPassword ? 'text' : 'password';
+        btnTogglePassword.innerHTML = isPassword
+          ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9.88 9.88 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>`
+          : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
+      };
+
+      // Caps Lock Detection
+      function checkCapsLock(e) {
+        if (e.getModifierState && capsLockWarning) {
+          capsLockWarning.style.display = e.getModifierState('CapsLock') ? 'block' : 'none';
+        }
+      }
+      inputAuthPassword.addEventListener('keyup', checkCapsLock);
+      inputAuthPassword.addEventListener('keydown', checkCapsLock);
+
+      // Keyboard Shortcuts (F for fullscreen, S for snapshot)
+      document.addEventListener('keydown', (e) => {
+        if (authGate && authGate.style.display !== 'none') return;
+        if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+        if (e.key === 'f' || e.key === 'F') {
+          e.preventDefault();
+          btnFullscreen.click();
+        } else if (e.key === 's' || e.key === 'S') {
+          e.preventDefault();
+          btnSnapshot.click();
+        }
+      });
+
+      // Toast Notifications
       function showToast(message, type = 'info') {
         const item = document.createElement('div');
         item.className = 'toast-item';
@@ -1510,14 +1829,7 @@
         logConsole.innerHTML = '';
       };
 
-      // Authentication Gate Logic
-      const authGate = document.getElementById('auth-gate');
-      const formAuth = document.getElementById('form-auth');
-      const inputAuthPassword = document.getElementById('input-auth-password');
-      const btnAuthSubmit = document.getElementById('btn-auth-submit');
-      const authErrorMsg = document.getElementById('auth-error-msg');
-      const btnLockConsole = document.getElementById('btn-lock-console');
-
+      // Authentication Session Management
       async function checkAuthSession() {
         try {
           const res = await fetch('/api/auth', { credentials: 'include' });
