@@ -1,0 +1,26 @@
+{
+  "name": "linewize-connect-monitor",
+  "version": "1.0.0",
+  "description": "Peer-to-peer classroom screen monitoring console and CORS reverse proxy for Linewize Connect",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "serve": "node server.js"
+  },
+  "keywords": [
+    "linewize",
+    "classroom-monitor",
+    "webrtc",
+    "peer-to-peer",
+    "cors-proxy",
+    "screen-stream",
+    "vercel"
+  ],
+  "author": "KaiSi",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "private": true
+}

@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Screen View — Linewize Connect</title>
+  <meta name="description" content="Peer-to-peer classroom device screen monitoring and telemetry console for Linewize Connect.">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
+  <script src="live_screen_view.js"></script>
+  <style>
+    /* ==========================================================================
+       DESIGN SYSTEM: STRICT 8-POINT SPACING SCALE & CONTROLLED ENTERPRISE TOKENS
+       ========================================================================== */
+    :root {
+      /* Spacing Scale (8pt grid with 4pt half-step) */
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-10: 40px;
+      --space-12: 48px;
+
+      /* Color System: Controlled Enterprise Slate Palette */
+      --color-bg-canvas: #090a0d;
+      --color-bg-surface: #111318;
+      --color-bg-surface-elevated: #181b22;
+      --color-bg-surface-hover: #1f232c;
+      --color-bg-surface-active: #262b36;
+
+      --color-border-subtle: #232731;
+      --color-border-medium: #303644;
+      --color-border-focus: #3b82f6;
+
+      --color-text-primary: #f3f4f6;
+      --color-text-secondary: #9ca3af;
+      --color-text-tertiary: #6b7280;
+      --color-text-disabled: #4b5563;
+
+      /* Semantic Status Colors (Clean, accessible, no neon) */
+      --color-brand: #2563eb;
+      --color-brand-hover: #1d4ed8;
+      --color-brand-subtle: rgba(37, 99, 235, 0.12);
+      
+      --color-success: #10b981;
+      --color-success-subtle: rgba(16, 185, 129, 0.12);
+      --color-warning: #f59e0b;
+      --color-warning-subtle: rgba(245, 158, 11, 0.12);
+      --color-error: #ef4444;
+      --color-error-hover: #dc2626;
+      --color-error-subtle: rgba(239, 68, 68, 0.12);
+
+      /* Typography */
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+      /* Unified Component Radius */
+      --radius-sm: 4px;
+      --radius-base: 6px;
+      --radius-lg: 8px;
+
+      /* Elevation / Shadows */
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+      --shadow-base: 0 4px 12px rgba(0, 0, 0, 0.35);
+      --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.45);
+    }
+
+    /* Reset & Global */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--color-bg-canvas);
+      color: var(--color-text-primary);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 18px;
+      letter-spacing: -0.01em;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--color-bg-canvas);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--color-border-medium);
+      border-radius: var(--radius-sm);
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--color-text-tertiary);
+    }
+
+    /* ==========================================================================
+       HEADER: LINEWIZE CONNECT APPLICATION SHELL
+       ========================================================================== */
+    .app-header {
+      height: 52px;
+      background-color: var(--color-bg-surface);
+      border-bottom: 1px solid var(--color-border-subtle);
+      padding: 0 var(--space-4);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .brand-logo {
+      width: 24px;
+      height: 24px;
+      background-color: var(--color-brand);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      flex-shrink: 0;
+    }
+
+    .brand-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .brand-divider {
+      width: 1px;
+      height: 16px;
+      background-color: var(--color-border-subtle);
+    }
+
+    .brand-context {
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--color-text-secondary);
+    }
+
+    /* System Status Indicators in Header */
+    .header-status-deck {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      background-color: var(--color-bg-surface-elevated);
+      border: 1px solid var(--color-border-subtle);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 14px;
+      color: var(--color-text-secondary);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--color-text-tertiary);
+      flex-shrink: 0;
+    }
+
+    .status-pill.is-active {
+      color: #d1fae5;
+      border-color: rgba(16, 185, 129, 0.3);
+      background-color: var(--color-success-subtle);
+    }
+    .status-pill.is-active .status-dot {
+      background-color: var(--color-success);
+    }
+
+    .status-pill.is-pending {
+      color: #fef3c7;
+      border-color: rgba(245, 158, 11, 0.3);
+      background-color: var(--color-warning-subtle);
+    }
+    .status-pill.is-pending .status-dot {
+      background-color: var(--color-warning);
+    }
+
+    .status-pill.is-error {
+      color: #fee2e2;
+      border-color: rgba(239, 68, 68, 0.3);
+      background-color: var(--color-error-subtle);
+    }
+    .status-pill.is-error .status-dot {
+      background-color: var(--color-error);
+    }
+
+    .telemetry-item {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+      padding: 0 var(--space-2);
+    }
+    .telemetry-item strong {
+      color: var(--color-text-primary);
+      font-weight: 500;
+    }
+
+    /* ==========================================================================
+       MAIN CONTAINER & LAYOUT STRUCTURE
+       ========================================================================== */
+    .app-main {
+      flex: 1;
+      padding: var(--space-4);
+      max-width: 1680px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    /* Protocol notice banner (only shown on file://) */
+    .protocol-banner {
+      display: none;
+      background-color: var(--color-warning-subtle);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: var(--radius-base);
+      padding: var(--space-3) var(--space-4);
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+    }
+    .protocol-banner-content {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      color: #fbbf24;
+      font-size: 13px;
+    }
+
+    /* ==========================================================================
+       CARD 1: CONNECTION & GATEWAY CONFIGURATION PANEL
+       ========================================================================== */
+    .config-panel {
+      background-color: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .config-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-3);
+    }
+
+    .config-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--color-text-secondary);
+    }
+
+    .config-grid {
+      display: grid;
+      grid-template-columns: 1.8fr 1.4fr 1fr 1.8fr auto;
+      gap: var(--space-3);
+      align-items: flex-end;
+    }
+
+    @media (max-width: 1200px) {
+      .config-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+      .config-actions {
+        grid-column: span 2;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .config-grid {
+        grid-template-columns: 1fr;
+      }
+      .config-actions {
+        grid-column: span 1;
+      }
+    }
+
+    /* Form Fields */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .form-label .subtext {
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+      font-family: var(--font-mono);
+      font-weight: 400;
+    }
+
+    .form-input {
+      height: 34px;
+      background-color: var(--color-bg-surface-elevated);
+      border: 1px solid var(--color-border-medium);
+      border-radius: var(--radius-base);
+      padding: 0 var(--space-3);
+      color: var(--color-text-primary);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      width: 100%;
+    }
+
+    .form-input:focus {
+      border-color: var(--color-border-focus);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+
+    .form-input::placeholder {
+      color: var(--color-text-tertiary);
+    }
+
+    select.form-input {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 28px;
+    }
+
+    select.form-input option {
+      background-color: var(--color-bg-surface-elevated);
+      color: var(--color-text-primary);
+    }
+
+    /* Buttons */
+    .config-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .btn {
+      height: 34px;
+      padding: 0 var(--space-3);
+      border-radius: var(--radius-base);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      outline: none;
+      white-space: nowrap;
+      transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+
+    .btn svg {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+
+    .btn-primary {
+      background-color: var(--color-brand);
+      color: #ffffff;
+      border-color: var(--color-brand);
+    }
+    .btn-primary:hover {
+      background-color: var(--color-brand-hover);
+      border-color: var(--color-brand-hover);
+    }
+
+    .btn-secondary {
+      background-color: var(--color-bg-surface-elevated);
+      border-color: var(--color-border-medium);
+      color: var(--color-text-primary);
+    }
+    .btn-secondary:hover {
+      background-color: var(--color-bg-surface-hover);
+      border-color: var(--color-text-tertiary);
+    }
+
+    .btn-danger {
+      background-color: var(--color-error);
+      color: #ffffff;
+      border-color: var(--color-error);
+    }
+    .btn-danger:hover {
+      background-color: var(--color-error-hover);
+      border-color: var(--color-error-hover);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Spinner */
+    .spinner {
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+
+    /* ==========================================================================
+       WORKSPACE: SPLIT SCREEN (VIEWPORT & INSPECTOR)
+       ========================================================================== */
+    .workspace-grid {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: var(--space-4);
+      flex: 1;
+      min-height: 520px;
+    }
+
+    @media (max-width: 1080px) {
+      .workspace-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Viewport Panel */
+    .viewport-panel {
+      background-color: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .viewport-header {
+      height: 44px;
+      padding: 0 var(--space-4);
+      background-color: var(--color-bg-surface);
+      border-bottom: 1px solid var(--color-border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .viewport-meta {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      overflow: hidden;
+      font-size: 13px;
+    }
+
+    .status-tag {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background-color: var(--color-bg-surface-elevated);
+      color: var(--color-text-tertiary);
+      border: 1px solid var(--color-border-subtle);
+    }
+    .status-tag.is-live {
+      background-color: var(--color-success-subtle);
+      color: var(--color-success);
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .viewport-tab-label {
+      color: var(--color-text-primary);
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 480px;
+    }
+
+    .viewport-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+    }
+
+    .icon-button {
+      height: 28px;
+      padding: 0 var(--space-2);
+      background-color: transparent;
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--color-text-secondary);
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .icon-button:hover {
+      background-color: var(--color-bg-surface-hover);
+      color: var(--color-text-primary);
+      border-color: var(--color-border-medium);
+    }
+
+    /* Screen Canvas Stage */
+    .screen-stage {
+      flex: 1;
+      background-color: #030406;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      min-height: 420px;
+    }
+
+    #live-screen-feed {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display: none;
+    }
+
+    /* Grounded Empty State */
+    .empty-stage-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: var(--space-8);
+      max-width: 420px;
+      color: var(--color-text-tertiary);
+    }
+
+    .empty-stage-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-base);
+      background-color: var(--color-bg-surface-elevated);
+      border: 1px solid var(--color-border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: var(--space-3);
+      color: var(--color-text-secondary);
+    }
+
+    .empty-stage-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+      margin-bottom: var(--space-1);
+    }
+
+    .empty-stage-desc {
+      font-size: 12px;
+      line-height: 18px;
+      color: var(--color-text-secondary);
+    }
+
+    /* Viewport Footer Bar */
+    .viewport-footer {
+      height: 36px;
+      padding: 0 var(--space-4);
+      background-color: var(--color-bg-surface);
+      border-top: 1px solid var(--color-border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+    }
+
+    .viewport-footer-metrics {
+      display: flex;
+      gap: var(--space-4);
+    }
+    .viewport-footer-metrics span strong {
+      color: var(--color-text-secondary);
+      font-weight: 500;
+    }
+
+    /* ==========================================================================
+       SIDEBAR: INSPECTOR PANEL (TABS & LOGS)
+       ========================================================================== */
+    .inspector-panel {
+      background-color: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .inspector-tabs {
+      height: 44px;
+      border-bottom: 1px solid var(--color-border-subtle);
+      display: flex;
+      padding: 0 var(--space-2);
+    }
+
+    .tab-nav-btn {
+      height: 100%;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 0 var(--space-3);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .tab-nav-btn:hover {
+      color: var(--color-text-primary);
+    }
+
+    .tab-nav-btn.is-active {
+      color: var(--color-brand);
+      border-bottom-color: var(--color-brand);
+    }
+
+    .tab-count-badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      background-color: var(--color-bg-surface-elevated);
+      color: var(--color-text-tertiary);
+      padding: 1px 5px;
+      border-radius: var(--radius-sm);
+    }
+
+    .inspector-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .inspector-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Student Tabs List */
+    .tab-filter-container {
+      padding: var(--space-2) var(--space-3);
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+
+    .student-tabs-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-2);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .student-tab-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-base);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: background-color 0.12s ease;
+    }
+
+    .student-tab-item:hover {
+      background-color: var(--color-bg-surface-hover);
+    }
+
+    .student-tab-item.is-active {
+      background-color: var(--color-brand-subtle);
+      border-color: rgba(37, 99, 235, 0.35);
+    }
+
+    .tab-favicon {
+      width: 16px;
+      height: 16px;
+      border-radius: 2px;
+      flex-shrink: 0;
+      background-color: var(--color-bg-surface-elevated);
+    }
+
+    .tab-text-block {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tab-title-text {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tab-url-text {
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+      font-family: var(--font-mono);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tab-status-tag {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      font-weight: 500;
+      padding: 1px 5px;
+      border-radius: var(--radius-sm);
+      background-color: rgba(37, 99, 235, 0.2);
+      color: #93c5fd;
+    }
+
+    /* System Logs Pane */
+    .logs-header {
+      padding: var(--space-2) var(--space-3);
+      border-bottom: 1px solid var(--color-border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .log-filter-select {
+      height: 24px;
+      background-color: var(--color-bg-surface-elevated);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--color-text-secondary);
+      font-size: 11px;
+      padding: 0 var(--space-2);
+      outline: none;
+    }
+
+    #log-console {
+      flex: 1;
+      padding: var(--space-3);
+      background-color: #060709;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 16px;
+      color: #d1d5db;
+      overflow-y: auto;
+      max-height: 480px;
+    }
+
+    .log-line {
+      display: flex;
+      gap: var(--space-2);
+      margin-bottom: 2px;
+      word-break: break-all;
+    }
+    .log-line-time {
+      color: var(--color-text-disabled);
+      flex-shrink: 0;
+    }
+    .log-line-msg {
+      flex: 1;
+    }
+    .log-line.error .log-line-msg { color: #f87171; }
+    .log-line.success .log-line-msg { color: #34d399; }
+    .log-line.warning .log-line-msg { color: #fbbf24; }
+    .log-line.info .log-line-msg { color: #93c5fd; }
+
+    /* In-App Toast Notifications (Clean, non-intrusive) */
+    #toast-shelf {
+      position: fixed;
+      bottom: var(--space-4);
+      right: var(--space-4);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      pointer-events: none;
+    }
+
+    .toast-item {
+      background-color: var(--color-bg-surface-elevated);
+      border: 1px solid var(--color-border-medium);
+      border-radius: var(--radius-base);
+      padding: var(--space-2) var(--space-3);
+      font-size: 12px;
+      color: var(--color-text-primary);
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      pointer-events: auto;
+      animation: toastFadeIn 0.15s ease-out;
+    }
+    @keyframes toastFadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Toast Notification Shelf -->
+  <div id="toast-shelf" aria-live="polite"></div>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="brand-section">
+      <div class="brand-logo" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+          <line x1="8" y1="21" x2="16" y2="21"/>
+          <line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+      </div>
+      <span class="brand-title">Linewize Connect</span>
+      <span class="brand-divider"></span>
+      <span class="brand-context">Live Screen Monitoring</span>
+    </div>
+
+    <!-- Status Deck -->
+    <div class="header-status-deck">
+      <div id="status-proxy" class="status-pill is-active" title="Local Reverse Proxy status">
+        <span class="status-dot"></span>
+        <span class="label">Proxy: Active</span>
+      </div>
+      <div id="status-event-service" class="status-pill" title="Event Service connection state">
+        <span class="status-dot"></span>
+        <span class="label">Event Service: Idle</span>
+      </div>
+      <div id="status-webrtc" class="status-pill" title="WebRTC peer connection state">
+        <span class="status-dot"></span>
+        <span class="label">Stream: Idle</span>
+      </div>
+      <div class="telemetry-item">
+        FPS: <strong id="metric-fps">0</strong>
+      </div>
+      <div class="telemetry-item">
+        Latency: <strong id="metric-latency">-- ms</strong>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Application Area -->
+  <main class="app-main">
+    <!-- File Protocol Warning Banner -->
+    <div id="banner-file-protocol" class="protocol-banner">
+      <div class="protocol-banner-content">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>Running on <code>file://</code> protocol. Browser security blocks cross-origin requests. Launch the server (<code>npm start</code>) and open <a href="http://localhost:3000" style="color: #60a5fa; text-decoration: underline; font-weight: 500;">http://localhost:3000</a>.</span>
+      </div>
+      <a href="http://localhost:3000" class="btn btn-secondary" style="height: 28px; font-size: 11px;">Open http://localhost:3000</a>
+    </div>
+
+    <!-- Configuration Panel -->
+    <section class="config-panel" aria-label="Session Configuration">
+      <div class="config-panel-header">
+        <h2 class="config-title">Connection Parameters</h2>
+      </div>
+
+      <div class="config-grid">
+        <!-- Target User Field -->
+        <div class="form-group">
+          <label class="form-label" for="input-target-user">
+            Target Student Identity
+            <span class="subtext">email / username</span>
+          </label>
+          <input type="text" id="input-target-user" class="form-input" placeholder="e.g. student@school.edu" spellcheck="false" autocomplete="off">
+        </div>
+
+        <!-- Appliance / Device ID Field -->
+        <div class="form-group">
+          <label class="form-label" for="input-device-id">
+            Appliance / Device ID
+            <span class="subtext">auto-detected</span>
+          </label>
+          <input type="text" id="input-device-id" class="form-input" placeholder="Appliance identifier" spellcheck="false">
+        </div>
+
+        <!-- Regional Gateway Selector -->
+        <div class="form-group">
+          <label class="form-label" for="select-region">
+            Gateway Region
+          </label>
+          <select id="select-region" class="form-input">
+            <option value="">Auto (Probe All)</option>
+            <option value="syd-1">US East (syd-1)</option>
+            <option value="syd-2">AU East (syd-2)</option>
+            <option value="uk-1">UK London (uk-1)</option>
+            <option value="beta-1">Beta Cluster (beta-1)</option>
+            <option value="sit">SIT Staging (sit)</option>
+          </select>
+        </div>
+
+        <!-- Event Service URL Field -->
+        <div class="form-group">
+          <label class="form-label" for="input-event-url">
+            Event Service Endpoint
+            <span class="subtext">resolved by gateway</span>
+          </label>
+          <input type="text" id="input-event-url" class="form-input" placeholder="https://events.syd-1.linewize.net" spellcheck="false">
+        </div>
+
+        <!-- Actions -->
+        <div class="config-actions">
+          <button id="btn-auto-detect" class="btn btn-secondary" title="Read configuration from Chrome extension storage">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            Auto-Detect
+          </button>
+          <button id="btn-query-gateway" class="btn btn-secondary" title="Query Linewize Gateway via CORS reverse proxy">
+            <svg id="icon-gateway-idle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <svg id="icon-gateway-spin" class="spinner" style="display: none;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            <span id="label-query-gateway">Query Gateway</span>
+          </button>
+          <button id="btn-connect" class="btn btn-primary" title="Connect to student screen stream">
+            <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Start Stream
+          </button>
+          <button id="btn-disconnect" class="btn btn-danger" style="display: none;" title="Terminate stream session">
+            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+            Disconnect
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Workspace Grid -->
+    <div class="workspace-grid">
+      <!-- Left: Screen Viewport Panel -->
+      <section class="viewport-panel" aria-label="Screen Viewport">
+        <div class="viewport-header">
+          <div class="viewport-meta">
+            <span id="stream-status-badge" class="status-tag">Disconnected</span>
+            <div id="viewport-tab-info" style="display: flex; align-items: center; gap: 6px;">
+              <span class="viewport-tab-label">No active feed</span>
+            </div>
+          </div>
+          <div class="viewport-actions">
+            <button id="btn-snapshot" class="icon-button" title="Capture current frame as PNG">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              Capture Frame
+            </button>
+            <button id="btn-fullscreen" class="icon-button" title="Toggle Fullscreen View">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+              Fullscreen
+            </button>
+          </div>
+        </div>
+
+        <!-- Video Canvas Stage -->
+        <div class="screen-stage" id="screen-container">
+          <!-- Calm Empty State -->
+          <div id="screen-placeholder" class="empty-stage-state">
+            <div class="empty-stage-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+            </div>
+            <p class="empty-stage-title">No Active Stream Feed</p>
+            <p class="empty-stage-desc">Specify a student email or user ID, query the gateway to resolve configuration, and click Start Stream to begin real-time peer-to-peer view.</p>
+          </div>
+
+          <!-- Active Live Screenshot Image -->
+          <img id="live-screen-feed" alt="Student Screen View">
+        </div>
+
+        <!-- Viewport Footer -->
+        <div class="viewport-footer">
+          <div class="viewport-footer-metrics">
+            <span>Resolution: <strong id="metric-resolution">--</strong></span>
+            <span>Frame: <strong id="metric-size">0 KB</strong></span>
+            <span>Total Transferred: <strong id="metric-bytes">0.0 MB</strong></span>
+          </div>
+          <div>
+            <span>Session: <strong id="metric-duration">00:00:00</strong></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right: Inspector Panel -->
+      <aside class="inspector-panel" aria-label="Inspector and Logs">
+        <!-- Inspector Navigation Tabs -->
+        <div class="inspector-tabs" role="tablist">
+          <button id="tab-nav-tabs" class="tab-nav-btn is-active" role="tab" aria-selected="true" aria-controls="pane-tabs">
+            <span>Student Tabs</span>
+            <span id="tab-count-badge" class="tab-count-badge">0</span>
+          </button>
+          <button id="tab-nav-logs" class="tab-nav-btn" role="tab" aria-selected="false" aria-controls="pane-logs">
+            <span>Signaling Log</span>
+          </button>
+        </div>
+
+        <div class="inspector-content">
+          <!-- Pane 1: Student Open Tabs -->
+          <div id="pane-tabs" class="inspector-pane" role="tabpanel" aria-labelledby="tab-nav-tabs">
+            <div class="tab-filter-container">
+              <input type="text" id="input-tab-filter" class="form-input" style="height: 28px; font-size: 11px;" placeholder="Filter student tabs..." spellcheck="false">
+            </div>
+            <div id="tab-list-container" class="student-tabs-list">
+              <div style="padding: var(--space-8) var(--space-4); text-align: center; color: var(--color-text-tertiary); font-size: 12px;">
+                Tabs will appear once the peer-to-peer control channel connects.
+              </div>
+            </div>
+          </div>
+
+          <!-- Pane 2: System Logs -->
+          <div id="pane-logs" class="inspector-pane" role="tabpanel" aria-labelledby="tab-nav-logs" style="display: none;">
+            <div class="logs-header">
+              <select id="select-log-filter" class="log-filter-select">
+                <option value="all">All Events</option>
+                <option value="p2p">WebRTC / P2P</option>
+                <option value="sse">Event Service</option>
+                <option value="error">Errors Only</option>
+              </select>
+              <button id="btn-clear-logs" style="background: none; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 11px;">Clear</button>
+            </div>
+            <div id="log-console"></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <!-- Client Application Controller -->
+  <script>
+    (function () {
+      const viewer = new LiveScreenViewer.LiveScreenViewer();
+
+      // UI Elements
+      const inputTargetUser = document.getElementById('input-target-user');
+      const inputDeviceId = document.getElementById('input-device-id');
+      const inputEventUrl = document.getElementById('input-event-url');
+      const selectRegion = document.getElementById('select-region');
+      const inputTabFilter = document.getElementById('input-tab-filter');
+
+      const btnAutoDetect = document.getElementById('btn-auto-detect');
+      const btnQueryGateway = document.getElementById('btn-query-gateway');
+      const iconGatewayIdle = document.getElementById('icon-gateway-idle');
+      const iconGatewaySpin = document.getElementById('icon-gateway-spin');
+      const labelQueryGateway = document.getElementById('label-query-gateway');
+
+      const btnConnect = document.getElementById('btn-connect');
+      const btnDisconnect = document.getElementById('btn-disconnect');
+      const btnFullscreen = document.getElementById('btn-fullscreen');
+      const btnSnapshot = document.getElementById('btn-snapshot');
+      const btnClearLogs = document.getElementById('btn-clear-logs');
+
+      const statusProxy = document.getElementById('status-proxy');
+      const statusEventService = document.getElementById('status-event-service');
+      const statusWebRTC = document.getElementById('status-webrtc');
+      const streamStatusBadge = document.getElementById('stream-status-badge');
+
+      const metricFps = document.getElementById('metric-fps');
+      const metricLatency = document.getElementById('metric-latency');
+      const metricResolution = document.getElementById('metric-resolution');
+      const metricSize = document.getElementById('metric-size');
+      const metricBytes = document.getElementById('metric-bytes');
+      const metricDuration = document.getElementById('metric-duration');
+
+      const viewportTabInfo = document.getElementById('viewport-tab-info');
+      const screenFeed = document.getElementById('live-screen-feed');
+      const screenPlaceholder = document.getElementById('screen-placeholder');
+      const tabListContainer = document.getElementById('tab-list-container');
+      const tabCountBadge = document.getElementById('tab-count-badge');
+      const logConsole = document.getElementById('log-console');
+      const toastShelf = document.getElementById('toast-shelf');
+      const bannerFileProtocol = document.getElementById('banner-file-protocol');
+
+      let currentFrameDataUrl = null;
+      let sessionStartTime = null;
+      let sessionTimer = null;
+      let cachedTabs = [];
+
+      // Grounded In-App Toast
+      function showToast(message, type = 'info') {
+        const item = document.createElement('div');
+        item.className = 'toast-item';
+        let iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+        if (type === 'success') {
+          iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+        } else if (type === 'error') {
+          iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+        }
+        item.innerHTML = `${iconSvg} <span>${message}</span>`;
+        toastShelf.appendChild(item);
+        setTimeout(() => {
+          item.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+          item.style.opacity = '0';
+          item.style.transform = 'translateY(4px)';
+          setTimeout(() => item.remove(), 200);
+        }, 3200);
+      }
+
+      // System Log Appender
+      function appendLog(text, level = 'info') {
+        const line = document.createElement('div');
+        line.className = `log-line ${level}`;
+        const time = new Date().toTimeString().split(' ')[0];
+        line.innerHTML = `
+          <span class="log-line-time">[${time}]</span>
+          <span class="log-line-msg">${text}</span>
+        `;
+        logConsole.appendChild(line);
+        logConsole.scrollTop = logConsole.scrollHeight;
+      }
+
+      viewer.options.onLog = (msg) => {
+        let level = 'info';
+        if (msg.includes('error') || msg.includes('Error')) level = 'error';
+        else if (msg.includes('success') || msg.includes('Connected') || msg.includes('OPEN')) level = 'success';
+        else if (msg.includes('INIT_P2P') || msg.includes('Offer') || msg.includes('Answer')) level = 'warning';
+        appendLog(msg, level);
+      };
+
+      viewer.options.onError = (err) => {
+        appendLog(`[ERROR] ${err.message}`, 'error');
+        showToast(err.message, 'error');
+      };
+
+      // Status Pill Helper
+      function setStatusPill(el, state, text) {
+        el.className = 'status-pill ' + (state ? 'is-' + state : '');
+        el.querySelector('.label').textContent = text;
+      }
+
+      // Stream Status Transitions
+      viewer.options.onStatusChange = (status) => {
+        if (status === 'connecting_event_service') {
+          setStatusPill(statusEventService, 'pending', 'Event Service: Connecting...');
+          streamStatusBadge.className = 'status-tag is-live';
+          streamStatusBadge.textContent = 'Connecting';
+        } else if (status === 'event_service_connected') {
+          setStatusPill(statusEventService, 'active', 'Event Service: Listening');
+        } else if (status === 'event_service_disconnected') {
+          setStatusPill(statusEventService, '', 'Event Service: Idle');
+        } else if (status === 'waiting_for_webrtc_handshake') {
+          setStatusPill(statusWebRTC, 'pending', 'Stream: Handshake...');
+        } else if (status === 'p2p_connected' || status === 'live_screen_viewing') {
+          setStatusPill(statusWebRTC, 'active', 'Stream: Active');
+          streamStatusBadge.className = 'status-tag is-live';
+          streamStatusBadge.textContent = 'Streaming';
+          screenPlaceholder.style.display = 'none';
+          screenFeed.style.display = 'block';
+          startSessionTimer();
+          showToast('Live screen stream active', 'success');
+        } else if (status === 'p2p_disconnected' || status === 'disconnected') {
+          setStatusPill(statusWebRTC, '', 'Stream: Idle');
+          streamStatusBadge.className = 'status-tag';
+          streamStatusBadge.textContent = 'Disconnected';
+          screenPlaceholder.style.display = 'flex';
+          screenFeed.style.display = 'none';
+          metricFps.textContent = '0';
+          metricLatency.textContent = '-- ms';
+          stopSessionTimer();
+        }
+      };
+
+      // Session Duration Timer
+      function startSessionTimer() {
+        stopSessionTimer();
+        sessionStartTime = Date.now();
+        sessionTimer = setInterval(() => {
+          const delta = Math.floor((Date.now() - sessionStartTime) / 1000);
+          const h = String(Math.floor(delta / 3600)).padStart(2, '0');
+          const m = String(Math.floor((delta % 3600) / 60)).padStart(2, '0');
+          const s = String(delta % 60).padStart(2, '0');
+          metricDuration.textContent = `${h}:${m}:${s}`;
+        }, 1000);
+      }
+
+      function stopSessionTimer() {
+        if (sessionTimer) {
+          clearInterval(sessionTimer);
+          sessionTimer = null;
+        }
+      }
+
+      // Incoming Screenshot Handling
+      viewer.options.onScreenshot = ({ screenshot, tabId, latencyMs, fps, sizeKB }) => {
+        currentFrameDataUrl = screenshot;
+        screenFeed.src = screenshot;
+        metricFps.textContent = fps;
+        metricLatency.textContent = `${latencyMs} ms`;
+        metricSize.textContent = `${sizeKB} KB`;
+        metricBytes.textContent = `${(viewer.stats.bytesReceived / (1024 * 1024)).toFixed(1)} MB`;
+
+        if (!metricResolution.dataset.set && screenFeed.naturalWidth) {
+          metricResolution.textContent = `${screenFeed.naturalWidth} × ${screenFeed.naturalHeight}`;
+          metricResolution.dataset.set = "true";
+        }
+      };
+
+      // Student Tabs Rendering
+      function renderTabs(tabs) {
+        tabCountBadge.textContent = tabs.length;
+        tabListContainer.innerHTML = '';
+
+        const query = (inputTabFilter.value || '').trim().toLowerCase();
+        const filtered = tabs.filter(t => !query || (t.title || '').toLowerCase().includes(query) || (t.tabUrl || '').toLowerCase().includes(query));
+
+        if (filtered.length === 0) {
+          tabListContainer.innerHTML = `<div style="padding: var(--space-6); text-align: center; color: var(--color-text-tertiary); font-size: 12px;">No matching tabs found.</div>`;
+          return;
+        }
+
+        filtered.forEach((tab) => {
+          const row = document.createElement('div');
+          row.className = 'student-tab-item' + (tab.active ? ' is-active' : '');
+
+          const icon = document.createElement('img');
+          icon.className = 'tab-favicon';
+          icon.src = tab.favIcon || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="%234b5563"/></svg>';
+
+          const textBlock = document.createElement('div');
+          textBlock.className = 'tab-text-block';
+
+          const title = document.createElement('div');
+          title.className = 'tab-title-text';
+          title.textContent = tab.title || '(Untitled tab)';
+
+          const url = document.createElement('div');
+          url.className = 'tab-url-text';
+          try {
+            url.textContent = new URL(tab.tabUrl).hostname;
+          } catch(e) {
+            url.textContent = tab.tabUrl || '';
+          }
+
+          textBlock.appendChild(title);
+          textBlock.appendChild(url);
+          row.appendChild(icon);
+          row.appendChild(textBlock);
+
+          if (tab.active) {
+            const activeTag = document.createElement('span');
+            activeTag.className = 'tab-status-tag';
+            activeTag.textContent = 'Active';
+            row.appendChild(activeTag);
+
+            viewportTabInfo.innerHTML = `
+              <img src="${icon.src}" style="width: 14px; height: 14px; border-radius: 2px;">
+              <span class="viewport-tab-label">${tab.title}</span>
+            `;
+          }
+
+          // Switch tab onClick
+          row.onclick = () => {
+            const parts = (tab.tab_id || '').split('_');
+            const winId = parts[0] ? parseInt(parts[0], 10) : 0;
+            const tId = parts[1] ? parseInt(parts[1], 10) : (tab.id || 0);
+
+            appendLog(`Switching target view to: "${tab.title}"`);
+            viewer.switchTab(winId, tId);
+
+            document.querySelectorAll('.student-tab-item').forEach(el => el.classList.remove('is-active'));
+            row.classList.add('is-active');
+
+            viewportTabInfo.innerHTML = `
+              <img src="${icon.src}" style="width: 14px; height: 14px; border-radius: 2px;">
+              <span class="viewport-tab-label">${tab.title}</span>
+            `;
+            showToast(`Switched view to "${tab.title}"`);
+          };
+
+          tabListContainer.appendChild(row);
+        });
+      }
+
+      viewer.options.onTabsUpdated = (tabs) => {
+        cachedTabs = tabs;
+        renderTabs(tabs);
+      };
+
+      inputTabFilter.oninput = () => renderTabs(cachedTabs);
+
+      // Inspector Tabs (Tabs / Logs)
+      const tabNavTabs = document.getElementById('tab-nav-tabs');
+      const tabNavLogs = document.getElementById('tab-nav-logs');
+      const paneTabs = document.getElementById('pane-tabs');
+      const paneLogs = document.getElementById('pane-logs');
+
+      tabNavTabs.onclick = () => {
+        tabNavTabs.className = 'tab-nav-btn is-active';
+        tabNavLogs.className = 'tab-nav-btn';
+        paneTabs.style.display = 'flex';
+        paneLogs.style.display = 'none';
+      };
+
+      tabNavLogs.onclick = () => {
+        tabNavLogs.className = 'tab-nav-btn is-active';
+        tabNavTabs.className = 'tab-nav-btn';
+        paneTabs.style.display = 'none';
+        paneLogs.style.display = 'flex';
+      };
+
+      // Auto-Detect Extension Config
+      btnAutoDetect.onclick = async () => {
+        appendLog('Attempting to read configuration from extension storage...');
+        const config = await viewer.detectExtensionConfig();
+        if (config) {
+          if (viewer.options.targetUser) inputTargetUser.value = viewer.options.targetUser;
+          if (viewer.options.deviceId) inputDeviceId.value = viewer.options.deviceId;
+          if (viewer.options.eventServiceUrl) inputEventUrl.value = viewer.options.eventServiceUrl;
+          showToast('Configuration auto-detected successfully', 'success');
+        } else {
+          showToast('No extension storage found; enter values manually or use Query Gateway', 'warning');
+        }
+      };
+
+      // Gateway Discovery
+      btnQueryGateway.onclick = async () => {
+        const user = inputTargetUser.value.trim();
+        const deviceId = inputDeviceId.value.trim();
+        const region = selectRegion.value;
+
+        if (!user) {
+          showToast('Please enter a target student identity first', 'warning');
+          inputTargetUser.focus();
+          return;
+        }
+
+        btnQueryGateway.disabled = true;
+        iconGatewayIdle.style.display = 'none';
+        iconGatewaySpin.style.display = 'inline-block';
+        labelQueryGateway.textContent = 'Querying...';
+        appendLog(`[Method 4] Querying Linewize Configuration Gateway for user: "${user}"...`);
+
+        try {
+          const config = await viewer.fetchConfigFromGateway({
+            targetUser: user,
+            deviceId: deviceId,
+            region: region
+          });
+
+          if (config) {
+            if (config.event_url) {
+              inputEventUrl.value = config.event_url;
+              showToast(`Event Service resolved: ${config.event_url}`, 'success');
+            }
+            if (config.device_id) inputDeviceId.value = config.device_id;
+            if (viewer.options.activeRegion) selectRegion.value = viewer.options.activeRegion;
+          }
+        } catch (err) {
+          showToast(`Gateway query failed: ${err.message}`, 'error');
+        } finally {
+          btnQueryGateway.disabled = false;
+          iconGatewayIdle.style.display = 'inline-block';
+          iconGatewaySpin.style.display = 'none';
+          labelQueryGateway.textContent = 'Query Gateway';
+        }
+      };
+
+      // Connect Button
+      btnConnect.onclick = async () => {
+        viewer.options.targetUser = inputTargetUser.value.trim();
+        viewer.options.deviceId = inputDeviceId.value.trim();
+        viewer.options.eventServiceUrl = inputEventUrl.value.trim();
+
+        if (!viewer.options.targetUser) {
+          showToast('Please specify a target student email or user ID', 'warning');
+          inputTargetUser.focus();
+          return;
+        }
+
+        btnConnect.style.display = 'none';
+        btnDisconnect.style.display = 'inline-flex';
+
+        try {
+          viewer.listenForEventServiceUrl();
+          await viewer.connectEventService();
+        } catch (err) {
+          showToast('Stream initialization failed: ' + err.message, 'error');
+          btnConnect.style.display = 'inline-flex';
+          btnDisconnect.style.display = 'none';
+        }
+      };
+
+      // Disconnect Button
+      btnDisconnect.onclick = () => {
+        viewer.disconnect();
+        btnConnect.style.display = 'inline-flex';
+        btnDisconnect.style.display = 'none';
+        viewportTabInfo.innerHTML = '<span class="viewport-tab-label">No active feed</span>';
+        metricResolution.dataset.set = "";
+        showToast('Stream session disconnected');
+      };
+
+      // Fullscreen
+      btnFullscreen.onclick = () => {
+        const container = document.getElementById('screen-container');
+        if (!document.fullscreenElement) {
+          container.requestFullscreen().catch(err => showToast(err.message, 'error'));
+        } else {
+          document.exitFullscreen();
+        }
+      };
+
+      // Capture Snapshot
+      btnSnapshot.onclick = () => {
+        if (!currentFrameDataUrl) {
+          showToast('No active screenshot available to capture', 'warning');
+          return;
+        }
+        const a = document.createElement('a');
+        a.href = currentFrameDataUrl;
+        a.download = `linewize-snapshot-${viewer.options.targetUser || 'student'}-${Date.now()}.png`;
+        a.click();
+        showToast('Frame exported as PNG', 'success');
+      };
+
+      // Clear Logs
+      btnClearLogs.onclick = () => {
+        logConsole.innerHTML = '';
+      };
+
+      // Healthcheck Reverse Proxy
+      async function checkServerProxy() {
+        if (window.location.protocol === 'file:') {
+          bannerFileProtocol.style.display = 'flex';
+          setStatusPill(statusProxy, 'error', 'Proxy: Offline (file://)');
+          appendLog('Running via file:// protocol. Start server with "npm start" and visit http://localhost:3000.', 'warning');
+          return;
+        }
+
+        try {
+          const res = await fetch('/api/status', { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            setStatusPill(statusProxy, 'active', `Proxy: Active (${window.location.port || '80'})`);
+            appendLog(`Connected to Linewize Connect Proxy Server (v${data.version}). CORS bypass active.`, 'success');
+          } else {
+            setStatusPill(statusProxy, 'pending', 'Proxy: Connecting...');
+          }
+        } catch (e) {
+          setStatusPill(statusProxy, 'error', 'Proxy: Offline');
+          appendLog('Could not reach server status endpoint. Ensure "node server.js" is running.', 'error');
+        }
+      }
+
+      checkServerProxy();
+      btnAutoDetect.click();
+    })();
+  </script>
+</body>
+</html>
