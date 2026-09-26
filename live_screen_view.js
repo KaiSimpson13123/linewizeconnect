@@ -283,6 +283,7 @@
           };
           if (deviceId || user) {
             headers['baggage'] = `applianceId=${deviceId},studentUsername=${user},agentType=chrome,agentVersion=${version}`;
+          }
           if (typeof window !== 'undefined' && window.__authToken) {
             headers['Authorization'] = `Bearer ${window.__authToken}`;
           }
